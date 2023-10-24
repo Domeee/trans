@@ -60,12 +60,10 @@ if Code.ensure_loaded?(Ecto.Adapters.SQL) do
     is located in `test/trans/query_builder_test.ex`).
     """
     defmacro translated(module, translatable, locale) do
-      static_locales? = static_locales?(locale)
-
       with field <- field(translatable) do
         module = Macro.expand(module, __CALLER__)
         validate_field(module, field)
-        generate_query(schema(translatable), module, field, locale, static_locales?)
+        generate_query(schema(translatable), module, field, locale)
       end
     end
 
@@ -95,15 +93,7 @@ if Code.ensure_loaded?(Ecto.Adapters.SQL) do
       {:fragment, [], ["? AS #{inspect(to_string(field))}", translated]}
     end
 
-    defp generate_query(schema, module, field, locales, true = static_locales?)
-         when is_list(locales) do
-      for locale <- locales do
-        generate_query(schema, module, field, locale, static_locales?)
-      end
-      |> coalesce(locales)
-    end
-
-    defp generate_query(schema, module, nil, locale, true = _static_locales?) do
+    defp generate_query(schema, module, nil, locale) do
       quote do
         fragment(
           "NULLIF((?->?),'null')",
@@ -113,7 +103,7 @@ if Code.ensure_loaded?(Ecto.Adapters.SQL) do
       end
     end
 
-    defp generate_query(schema, module, field, locale, true = _static_locales?) do
+    defp generate_query(schema, module, field, locale) do
       if locale == module.__trans__(:default_locale) do
         quote do
           field(unquote(schema), unquote(field))
@@ -129,12 +119,6 @@ if Code.ensure_loaded?(Ecto.Adapters.SQL) do
           )
         end
       end
-    end
-
-    # Called at runtime - we use a database function
-    defp generate_query(schema, module, field, locales, false = _static_locales?) do
-      default_locale = to_string(module.__trans__(:default_locale) || :en)
-      translate_field(module, schema, field, default_locale, locales)
     end
 
     defp translate_field(module, schema, nil, default_locale, locales) do
